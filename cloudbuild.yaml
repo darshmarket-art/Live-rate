@@ -1,0 +1,77 @@
+# Builds the image once and deploys it as both services. Trigger: push to main (docs/DEPLOY.md, step 6).
+# Feed settings (_FEED_*) are trigger substitutions, so a provider change is a trigger edit, not a code change.
+# Secrets come from Secret Manager (docs/DEPLOY.md, step 3).
+substitutions:
+  _REGION: asia-south1
+  _REPO: live-rate
+  _BUCKET: antarixs-live-rate-media
+  _FEED_URL: ''
+  _FEED_KEY_HEADER: x-api-key
+  _FEED_GOLD_PATH: ''
+  _FEED_GOLD_UNIT: g
+  _FEED_SILVER_PATH: ''
+  _FEED_SILVER_UNIT: kg
+  _FEED_FX_PATH: ''
+  _FEED_INTERVAL_MS: '1000'
+options:
+  logging: CLOUD_LOGGING_ONLY
+  dynamicSubstitutions: true
+steps:
+  - id: test
+    name: node:22
+    entrypoint: bash
+    args: ['-c', 'npm ci && npm run lint && npm test']
+
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args: ['build', '-t', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/app:$SHORT_SHA', '.']
+
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args: ['push', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/app:$SHORT_SHA']
+
+  # rate-ingest: exactly one instance with CPU always on (it polls the feed), no public access.
+  - id: deploy-ingest
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - rate-ingest
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/app:$SHORT_SHA
+      - --region=${_REGION}
+      - --service-account=rate-ingest@$PROJECT_ID.iam.gserviceaccount.com
+      - --no-allow-unauthenticated
+      - --min-instances=1
+      - --max-instances=1
+      - --no-cpu-throttling
+      - --timeout=3600
+      - --concurrency=200
+      - --set-env-vars=ROLE=ingest,STORE=firestore,FEED_PROVIDER=http,FEED_URL=${_FEED_URL},FEED_KEY_HEADER=${_FEED_KEY_HEADER},FEED_GOLD_PATH=${_FEED_GOLD_PATH},FEED_GOLD_UNIT=${_FEED_GOLD_UNIT},FEED_SILVER_PATH=${_FEED_SILVER_PATH},FEED_SILVER_UNIT=${_FEED_SILVER_UNIT},FEED_FX_PATH=${_FEED_FX_PATH},FEED_INTERVAL_MS=${_FEED_INTERVAL_MS}
+      - --set-secrets=JWT_SECRET=live-rate-jwt:latest,INGEST_TOKEN=live-rate-ingest-token:latest,FEED_KEY=live-rate-feed-key:latest,WHATSAPP_TOKEN=whatsapp-token:latest,WHATSAPP_PHONE_NUMBER_ID=whatsapp-phone-id:latest
+
+  # live-rate: every store, autoscaled. Rate streams stay open, so a long timeout and high concurrency.
+  # Reachable only through the load balancer ([store].rates.antarixs.com).
+  - id: deploy-live
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -e
+        ingest_url="$(gcloud run services describe rate-ingest --region=${_REGION} --format='value(status.url)')"
+        gcloud run deploy live-rate \
+          --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/app:$SHORT_SHA \
+          --region=${_REGION} \
+          --service-account=live-rate@$PROJECT_ID.iam.gserviceaccount.com \
+          --allow-unauthenticated \
+          --ingress=internal-and-cloud-load-balancing \
+          --min-instances=1 \
+          --timeout=3600 \
+          --concurrency=1000 \
+          --cpu=1 --memory=512Mi \
+          --set-env-vars="ROLE=live,STORE=firestore,BASE_DOMAIN=antarixs.com,BUCKET=${_BUCKET},INGEST_URL=$${ingest_url}" \
+          --set-secrets=JWT_SECRET=live-rate-jwt:latest,QUOTE_SECRET=live-rate-quote:latest,INGEST_TOKEN=live-rate-ingest-token:latest,MASTER_KEY=live-rate-master:latest,WHATSAPP_TOKEN=whatsapp-token:latest,WHATSAPP_PHONE_NUMBER_ID=whatsapp-phone-id:latest
+
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/app:$SHORT_SHA
