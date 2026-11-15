@@ -1,7 +1,7 @@
 /*
  * Antarixs Live Rate: the store design of [store].antarixs.com (Maison: Cormorant Garamond over Jost, square corners, hairlines),
  * coloured only through the theme tokens below. The owner's theme sets them (server/html.ts paints them before the app starts;
- * src/theme.ts updates them live). The owner console keeps its own light look (.lt).
+ * src/theme.ts updates them live). The owner console follows the same theme.
  */
 :root{--bg:#0d0c0a;--bg2:#171512;--bg3:#1f1c18;--ink:#f3eee4;--mut:#aaa397;--hair:#2e2a24;--accent:#c9a961;--on-accent:#0d0c0a;--up:#8fd1a8;--dn:#ef8e72;--btn:#f3eee4;--on-btn:#0d0c0a;--display:'Cormorant Garamond';
   --sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px)}
@@ -11,6 +11,7 @@ body{font-family:'Jost','Futura','Century Gothic',sans-serif;font-size:15px;line
 img{display:block}
 p{margin:0}
 button,input,select,textarea{font:inherit;color:inherit}
+option{background:var(--bg2);color:var(--ink)}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 a{color:inherit}
 
@@ -148,16 +149,9 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.4;stro
 .code input{position:absolute;inset:0;opacity:0;width:100%}
 
 /* owner console: the store's light console, whatever the buyers' theme */
-.lt{--bg:#faf7f1;--bg2:#f3eee4;--bg3:#ebe4d6;--ink:#0d0c0a;--mut:#5f584d;--hair:#d9d0bf;--accent:#7a5f24;--on-accent:#faf7f1;--up:#2f7d4f;--dn:#b5472b;--btn:#0d0c0a;--on-btn:#faf7f1;--display:'Cormorant Garamond';background:var(--bg);color:var(--ink)}
-.lt .tabs button[aria-current="page"]{color:var(--ink)}
-.lt .chip[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
-.lt .sw[aria-pressed="true"]{border-color:var(--ink)}
-.lt .sw[aria-pressed="true"] i{background:var(--ink)}
-.lt .step,.lt .sw{background:#fff}
-.card{background:#fff;border:1px solid var(--hair);padding:16px}
-.feedbar{display:flex;align-items:center;gap:12px;padding:14px 16px;background:#0d0c0a;color:#f3eee4}
-.feedbar .live i{background:#8fd1a8}
-.th-card{display:flex;flex-direction:column;gap:10px;padding:10px;border:1px solid var(--hair);background:#fff;cursor:pointer;text-align:left}
+.card{background:var(--bg2);border:1px solid var(--hair);padding:16px}
+.feedbar{display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--btn);color:var(--on-btn)}
+.th-card{display:flex;flex-direction:column;gap:10px;padding:10px;border:1px solid var(--hair);background:var(--bg2);cursor:pointer;text-align:left}
 .th-card[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
 .th-prev{height:120px;padding:12px;display:flex;flex-direction:column;justify-content:space-between}
 
@@ -181,12 +175,11 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.4;stro
 .tv-ad.on{opacity:1}
 .tv-ad img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 
-/* dual-tone themes: tone A (--btn) fills the header, the section title bars and the tab bar; tone B (--accent) underlines them.
-   The owner console (.lt) keeps its own look. */
-:root[data-duo] .app:not(.lt) .bar{background:var(--btn);color:var(--on-btn);border-bottom:2px solid var(--accent)}
-:root[data-duo] .app:not(.lt) .tabs{background:var(--btn);border-top:2px solid var(--accent)}
-:root[data-duo] .app:not(.lt) .tabs button{color:color-mix(in srgb,var(--on-btn) 72%,var(--btn))}
-:root[data-duo] .app:not(.lt) .tabs button[aria-current="page"]{color:var(--on-btn);box-shadow:inset 0 3px 0 var(--accent)}
+/* dual-tone themes: tone A (--btn) fills the header, the section title bars and the tab bar; tone B (--accent) underlines them. */
+:root[data-duo] .app .bar{background:var(--btn);color:var(--on-btn);border-bottom:2px solid var(--accent)}
+:root[data-duo] .app .tabs{background:var(--btn);border-top:2px solid var(--accent)}
+:root[data-duo] .app .tabs button{color:color-mix(in srgb,var(--on-btn) 72%,var(--btn))}
+:root[data-duo] .app .tabs button[aria-current="page"]{color:var(--on-btn);box-shadow:inset 0 3px 0 var(--accent)}
 :root[data-duo] .sec{border-color:var(--btn)}
 :root[data-duo] .sec-h{background:var(--btn);color:var(--on-btn);border-bottom:2px solid var(--accent)}
 :root[data-duo] .mbox{border-color:var(--btn);border-top:3px solid var(--accent)}

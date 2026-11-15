@@ -51,12 +51,12 @@ export const Themes: React.FC = () => {
   };
   return (
     <div className="col grow">
-      <Title ey="Look" title="Theme">The colours of your buyers’ app and your shop screen. This console stays light.</Title>
+      <Title ey="Look" title="Theme">The colours of your buyers’ app, your shop screen and this console.</Title>
       <div role="radiogroup" aria-label="Theme" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12, padding: '10px 20px 0' }}>
         {themes.map((t) => (
           <button key={t.id} type="button" role="radio" aria-checked={pick === t.id} aria-pressed={pick === t.id} className="th-card" onClick={() => setPick(t.id)}>
             <Preview id={t.id} display={t.display} duo={t.duo} name={store.name.split(' ')[0]} />
-            <span className="col" style={{ gap: 2 }}>{t.duo && <span className="xs" style={{ fontSize: 9.5, color: '#7a5f24' }}>New · dual tone</span>}<b style={{ fontWeight: 500 }}>{t.name}{pick === t.id && saved.includes(`"${t.id}"`) ? ' · in use' : ''}</b><span className="mut" style={{ fontSize: 12 }}>{t.note}</span></span>
+            <span className="col" style={{ gap: 2 }}>{t.duo && <span className="xs" style={{ fontSize: 9.5, color: 'var(--accent)' }}>New · dual tone</span>}<b style={{ fontWeight: 500 }}>{t.name}{pick === t.id && saved.includes(`"${t.id}"`) ? ' · in use' : ''}</b><span className="mut" style={{ fontSize: 12 }}>{t.note}</span></span>
           </button>
         ))}
       </div>

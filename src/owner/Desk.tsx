@@ -42,8 +42,8 @@ export const Desk: React.FC = () => {
       <Title ey="Rate desk" title="Your rates" />
       <section className="feedbar" style={{ margin: '8px 20px 0' }}>
         <span className="live" style={{ fontSize: 10 }}><i />{feed?.status === 'live' ? 'Feed live' : 'Feed paused'}</span>
-        <span className="grow" style={{ fontSize: 12, color: '#aaa397' }}>{feed ? `Antarixs feed · last tick ${timeOf(feed.at)}` : 'Waiting for the first tick'}</span>
-        {feed?.sample && <span className="xs" style={{ fontSize: 10, color: '#c9a961' }}>Sample</span>}
+        <span className="grow" style={{ fontSize: 12, opacity: 0.75 }}>{feed ? `Antarixs feed · last tick ${timeOf(feed.at)}` : 'Waiting for the first tick'}</span>
+        {feed?.sample && <span className="xs" style={{ fontSize: 10 }}>Sample</span>}
       </section>
 
       <section className="row sb" style={{ margin: '16px 20px 0', gap: 12 }}>

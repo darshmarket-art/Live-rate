@@ -51,7 +51,7 @@ export const Owner: React.FC<{ path: string }> = ({ path }) => {
   else if (path.startsWith('/owner/store')) body = <StoreSettings />;
   else body = <Desk />;
   return (
-    <div className="app lt">
+    <div className="app">
       <header className="bar">
         <span />
         <button type="button" className="word" onClick={() => go('/owner')}><span className="mark">{store.name.trim().charAt(0).toUpperCase()}</span><span>{store.name}</span></button>
