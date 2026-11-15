@@ -49,7 +49,7 @@ export interface Booking { ref: string; phone: string; name: string; product: Bo
 export interface Alert { id: string; row: RowId; above: boolean; mark: number; active: boolean; createdAt: string; triggeredAt?: string; triggeredRate?: number }
 export interface Profile { name: string; tagline: string; city: string; address: string; phone: string; whatsapp: string; taxNote: string; payTerms: string; pickup: string; notice: string; ratesPublic: boolean }
 export interface OwnerBanner extends Omit<Banner, 'photo'> { startsOn?: string; endsOn?: string; app: boolean; screen: boolean; on: boolean; order: number; photoUrl: string | null }
-export interface ThemeChoice { id: ThemeId; name: string; note: string; dark: boolean; tokens: ThemeTokens; display: string }
+export interface ThemeChoice { id: ThemeId; name: string; note: string; dark: boolean; tokens: ThemeTokens; display: string; duo?: boolean }
 
 export const api = {
   store: () => call<{ store: StoreInfo; theme: ThemeView; banners: Banner[] }>('/api/store'),

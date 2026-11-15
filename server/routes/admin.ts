@@ -24,7 +24,7 @@ export function adminRoutes(store: Store, cache: StoreCache, blobs: Blobs, auth:
   r.get('/settings', handler(async (_req, res) => {
     const st = storeOf(res);
     const s = await cache.get(st.id, st.name);
-    res.json({ status: 'success', ...s, themes: Object.values(THEMES).map(({ id, name, note, dark, tokens, display, duo }) => ({ id, name, note, dark, tokens, display, duo: Boolean(duo) })) });
+    res.json({ status: 'success', ...s, themes: Object.values(THEMES).sort((a, b) => Number(Boolean(b.duo)) - Number(Boolean(a.duo))).map(({ id, name, note, dark, tokens, display, duo }) => ({ id, name, note, dark, tokens, display, duo: Boolean(duo) })) });
   }));
 
   /** The feed before this store's margins (owners only: buyers see the store's own rates, never its margin). */

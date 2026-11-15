@@ -7,11 +7,11 @@ import { themeVars } from '../theme';
 import { Title } from './Owner';
 
 /** A small rate board in a theme: what buyers will see. */
-const Preview: React.FC<{ id: ThemeId; accent?: string; display: string; big?: boolean; name: string }> = ({ id, accent, display, big, name }) => {
+const Preview: React.FC<{ id: ThemeId; accent?: string; display: string; big?: boolean; name: string; duo?: boolean }> = ({ id, accent, display, big, name, duo }) => {
   const t = tokensFor({ id, accent });
   return (
     <div style={{ ...themeVars(t, display), border: `1px solid ${t.hair}` }} aria-hidden="true">
-      <div className="row sb" style={{ padding: big ? '12px 14px' : '8px 10px', borderBottom: `1px solid ${t.hair}` }}>
+      <div className="row sb" style={{ padding: big ? '12px 14px' : '8px 10px', ...(duo ? { background: t.btn, color: t.onBtn, borderBottom: `2px solid ${t.accent}` } : { borderBottom: `1px solid ${t.hair}` }) }}>
         <span className="ser" style={{ fontSize: big ? 18 : 13, letterSpacing: '.24em', textTransform: 'uppercase' }}>{name}</span>
         <span className="live" style={{ fontSize: big ? 10 : 8 }}><i />Live</span>
       </div>
@@ -55,8 +55,8 @@ export const Themes: React.FC = () => {
       <div role="radiogroup" aria-label="Theme" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12, padding: '10px 20px 0' }}>
         {themes.map((t) => (
           <button key={t.id} type="button" role="radio" aria-checked={pick === t.id} aria-pressed={pick === t.id} className="th-card" onClick={() => setPick(t.id)}>
-            <Preview id={t.id} display={t.display} name={store.name.split(' ')[0]} />
-            <span className="col" style={{ gap: 2 }}><b style={{ fontWeight: 500 }}>{t.name}{pick === t.id && saved.includes(`"${t.id}"`) ? ' · in use' : ''}</b><span className="mut" style={{ fontSize: 12 }}>{t.note}</span></span>
+            <Preview id={t.id} display={t.display} duo={t.duo} name={store.name.split(' ')[0]} />
+            <span className="col" style={{ gap: 2 }}>{t.duo && <span className="xs" style={{ fontSize: 9.5, color: '#7a5f24' }}>New · dual tone</span>}<b style={{ fontWeight: 500 }}>{t.name}{pick === t.id && saved.includes(`"${t.id}"`) ? ' · in use' : ''}</b><span className="mut" style={{ fontSize: 12 }}>{t.note}</span></span>
           </button>
         ))}
       </div>
@@ -79,7 +79,7 @@ export const Themes: React.FC = () => {
       {def && (
         <section className="col" style={{ padding: '18px 20px 0', gap: 8 }}>
           <span className="xs mut">What buyers will see</span>
-          <Preview id={pick} accent={useAccent && accent && !accentErr ? accent : undefined} display={def.display} big name={store.name.split(' ')[0]} />
+          <Preview id={pick} accent={useAccent && accent && !accentErr ? accent : undefined} display={def.display} duo={def.duo} big name={store.name.split(' ')[0]} />
         </section>
       )}
 
