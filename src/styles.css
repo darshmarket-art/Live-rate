@@ -84,7 +84,7 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.4;stro
 .mbox.f-dn{background:color-mix(in srgb,var(--dn) 12%,var(--bg2))}
 .mbox.f-up .v{color:var(--up)}
 .mbox.f-dn .v{color:var(--dn)}
-.mcx{display:grid;grid-template-columns:minmax(0,1fr) 92px 74px 74px;gap:8px;align-items:center}
+.mcx{display:grid;grid-template-columns:minmax(0,1fr) 74px 74px 92px;gap:8px;align-items:center}
 .sec-h.mcx span:not(:first-child){text-align:right}
 .mrow{padding:10px 14px;border-bottom:1px solid var(--hair);transition:background-color .9s ease}
 .mrow:last-child,.sec .rrow:last-of-type{border-bottom:0}
@@ -172,7 +172,7 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.4;stro
 .tv-mkt .mbox .chg{font-size:.9vw}
 .tv-mkt .sec{margin:1vw 0 0}
 .tv-mkt .sec-h{font-size:.8vw}
-.tv-mkt .mcx{grid-template-columns:minmax(0,1fr) 12vw 9vw 9vw}
+.tv-mkt .mcx{grid-template-columns:minmax(0,1fr) 9vw 9vw 12vw}
 .tv-mkt .mrow .rate{font-size:1.8vw}
 .tv-mkt .hl1{font-size:1.2vw}
 .tv-tick .tick{height:2.6vw;font-size:1.15vw;margin:0 -3.75vw}

@@ -79,7 +79,7 @@ export const McxBoard: React.FC<{ mcx?: Board['mcx'] }> = ({ mcx }) => {
   if (!rows.length) return null;
   return (
     <section className="sec" aria-label="MCX futures">
-      <div className="sec-h mcx"><span>MCX Futures</span><span>Rate</span><span>High</span><span>Low</span></div>
+      <div className="sec-h mcx"><span>MCX Futures</span><span>High</span><span>Low</span><span>Rate</span></div>
       {rows.map(([m, name, unit]) => {
         const { name: contract, q } = mcx![m]!;
         return (
@@ -89,9 +89,9 @@ export const McxBoard: React.FC<{ mcx?: Board['mcx'] }> = ({ mcx }) => {
               <span className="ctr">{contract}</span>
               <Chg q={q} f={rupees} />
             </span>
-            <span className="rate num">{rupees(q.v)}</span>
             <span className="num hl1">{rupees(q.h)}</span>
             <span className="num hl1">{rupees(q.l)}</span>
+            <span className="rate num">{rupees(q.v)}</span>
           </div>
         );
       })}

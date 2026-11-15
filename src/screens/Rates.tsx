@@ -26,7 +26,7 @@ export const Rates: React.FC = () => {
       <MarketBoxes mkt={board?.mkt} />
       {!live && board && <p className="paused" role="status">The rate feed has paused. The last rates stay on screen and booking is off until it is back.</p>}
       <section className="sec col" aria-busy={!board} aria-label="Rates">
-        <div className="sec-h rhead one"><span>Rates</span><span style={{ textAlign: 'right' }}>Rate</span></div>
+        <div className="sec-h rhead one"><span>Rates</span></div>
         {board?.rows.map((r) => (
           <button key={r.id} type="button" className={`rrow one${flash[r.id] ? ` f-${flash[r.id]}` : ''}`} onClick={() => go(`/metal/${r.id}`)} aria-label={`${r.name}: ₹${inr(r.buy)} per ${r.unit}`}>
             <span className="col" style={{ gap: 3, minWidth: 0 }}>

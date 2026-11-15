@@ -44,7 +44,7 @@ export const Screen: React.FC = () => {
         </header>
         <div className="tv-mkt"><MarketBoxes mkt={b.mkt} /></div>
         <div className="tv-grid" style={{ padding: `${vw(26)} 0 ${vw(14)}`, fontSize: vw(15), fontWeight: 500, letterSpacing: '.24em', textTransform: 'uppercase', color: 'var(--mut)' }}>
-          <span>Rates</span><span /><span style={{ textAlign: 'right' }}>Rate</span>
+          <span>Rates</span>
         </div>
         {b.rows.map((r) => (
           <div key={r.id} className={`tv-grid rrow${flash[r.id] ? ` f-${flash[r.id]}` : ''}`} style={{ minHeight: vw(150), padding: 0, borderTop: '1px solid var(--hair)', borderBottom: 0, cursor: 'default' }}>
