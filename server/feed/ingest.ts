@@ -1,4 +1,4 @@
-import { indiaDay, type Tick } from '../../shared/rates';
+import { indiaDay, MKT_IDS, nextQuote, type Market, type Tick } from '../../shared/rates';
 import { logger } from '../logger';
 import type { Store } from '../store';
 import type { FeedHub } from './hub';
@@ -85,13 +85,21 @@ export class Ingest {
       source = this.provider.kind === 'sample' ? 'sample' : 'feed';
     }
     if (!reading) return null;
-    const sameDay = this.latest && indiaDay(this.latest.at) === indiaDay(now);
+    // the day's opening restarts on a new India day, and once when the feed first gives MCX (the rates then follow MCX, not the old base)
+    const sameDay = this.latest && indiaDay(this.latest.at) === indiaDay(now) && (Boolean(this.latest.mkt?.mcx) || !reading.mcx);
+    // each market's day high and low (a new India day starts again); the rate set by hand carries no market prices
+    const mkt: Market = {};
+    const was = sameDay ? this.latest!.mkt : undefined;
+    for (const id of MKT_IDS) { const v = reading[id]; if (v) mkt[id] = nextQuote(v, was?.[id]); }
+    for (const m of ['g', 's'] as const) {
+      const b = reading.mcx?.[m];
+      if (b) (mkt.mcx ??= {})[m] = Object.fromEntries(Object.entries(b).map(([name, v]) => [name, nextQuote(v, was?.mcx?.[m]?.[name])]));
+    }
     const tick: Tick = {
       at: now,
       g: Math.round(reading.g * 100) / 100,
       s: Math.round(reading.s * 1000) / 1000,
-      ...(reading.usdOz ? { usdOz: reading.usdOz } : {}),
-      ...(reading.fx ? { fx: reading.fx } : {}),
+      ...(Object.keys(mkt).length ? { mkt } : {}),
       open: sameDay ? this.latest!.open : { g: reading.g, s: reading.s },
       source,
       ...(source === 'sample' ? { sample: true } : {})

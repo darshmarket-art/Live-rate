@@ -5,6 +5,11 @@ substitutions:
   _REGION: asia-south1
   _REPO: live-rate
   _BUCKET: antarixs-live-rate-media
+  _FEED_PROVIDER: http
+  _ALLOW_SAMPLE_FEED: 'false'
+  # Live Rate's own WhatsApp secrets, once created (docs/DEPLOY.md, step 3). Empty: buyer sign-in says it is not set up.
+  # e.g. ,WHATSAPP_TOKEN=live-rate-whatsapp-token:latest,WHATSAPP_PHONE_NUMBER_ID=live-rate-whatsapp-phone-id:latest
+  _WA_SECRETS: ''
   _FEED_URL: ''
   _FEED_KEY_HEADER: x-api-key
   _FEED_GOLD_PATH: ''
@@ -47,8 +52,8 @@ steps:
       - --no-cpu-throttling
       - --timeout=3600
       - --concurrency=200
-      - --set-env-vars=ROLE=ingest,STORE=firestore,FEED_PROVIDER=http,FEED_URL=${_FEED_URL},FEED_KEY_HEADER=${_FEED_KEY_HEADER},FEED_GOLD_PATH=${_FEED_GOLD_PATH},FEED_GOLD_UNIT=${_FEED_GOLD_UNIT},FEED_SILVER_PATH=${_FEED_SILVER_PATH},FEED_SILVER_UNIT=${_FEED_SILVER_UNIT},FEED_FX_PATH=${_FEED_FX_PATH},FEED_INTERVAL_MS=${_FEED_INTERVAL_MS}
-      - --set-secrets=JWT_SECRET=live-rate-jwt:latest,INGEST_TOKEN=live-rate-ingest-token:latest,FEED_KEY=live-rate-feed-key:latest,WHATSAPP_TOKEN=whatsapp-token:latest,WHATSAPP_PHONE_NUMBER_ID=whatsapp-phone-id:latest
+      - --set-env-vars=ROLE=ingest,STORE=firestore,FEED_PROVIDER=${_FEED_PROVIDER},ALLOW_SAMPLE_FEED=${_ALLOW_SAMPLE_FEED},FEED_URL=${_FEED_URL},FEED_KEY_HEADER=${_FEED_KEY_HEADER},FEED_GOLD_PATH=${_FEED_GOLD_PATH},FEED_GOLD_UNIT=${_FEED_GOLD_UNIT},FEED_SILVER_PATH=${_FEED_SILVER_PATH},FEED_SILVER_UNIT=${_FEED_SILVER_UNIT},FEED_FX_PATH=${_FEED_FX_PATH},FEED_INTERVAL_MS=${_FEED_INTERVAL_MS}
+      - --set-secrets=JWT_SECRET=live-rate-jwt:latest,INGEST_TOKEN=live-rate-ingest-token:latest,FEED_KEY=live-rate-feed-key:latest${_WA_SECRETS}
 
   # live-rate: every store, autoscaled. Rate streams stay open, so a long timeout and high concurrency.
   # Reachable only through the load balancer ([store].rates.antarixs.com).
@@ -71,7 +76,7 @@ steps:
           --concurrency=1000 \
           --cpu=1 --memory=512Mi \
           --set-env-vars="ROLE=live,STORE=firestore,BASE_DOMAIN=antarixs.com,BUCKET=${_BUCKET},INGEST_URL=$${ingest_url}" \
-          --set-secrets=JWT_SECRET=live-rate-jwt:latest,QUOTE_SECRET=live-rate-quote:latest,INGEST_TOKEN=live-rate-ingest-token:latest,MASTER_KEY=live-rate-master:latest,WHATSAPP_TOKEN=whatsapp-token:latest,WHATSAPP_PHONE_NUMBER_ID=whatsapp-phone-id:latest
+          --set-secrets=JWT_SECRET=live-rate-jwt:latest,QUOTE_SECRET=live-rate-quote:latest,INGEST_TOKEN=live-rate-ingest-token:latest,MASTER_KEY=live-rate-master:latest,RENFLAIR_API_KEY=live-rate-renflair-key:latest${_WA_SECRETS}
 
 images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/app:$SHORT_SHA

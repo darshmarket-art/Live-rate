@@ -42,18 +42,22 @@ async function call<T = any>(path: string, init: RequestInit = {}): Promise<T> {
 const post = <T = any>(path: string, body?: unknown, method = 'POST') => call<T>(path, { method, body: body === undefined ? undefined : JSON.stringify(body) });
 
 export interface Banner { id: string; eyebrow: string; title: string; line: string; action: 'book' | 'whatsapp' | 'call' | 'link' | 'none'; link?: string; photo: string | null }
-export interface StoreInfo { id: string; name: string; tagline: string; city: string; address: string; phone: string; whatsapp: string; taxNote: string; payTerms: string; pickup: string; ratesPublic: boolean; bookingsOpen: boolean; coinPremium: number }
-export interface ThemeView { id: ThemeId; accent: string | null; dark: boolean; display?: string; tokens: ThemeTokens }
+export interface StoreInfo { id: string; name: string; tagline: string; city: string; address: string; phone: string; whatsapp: string; taxNote: string; payTerms: string; pickup: string; notice: string; ratesPublic: boolean; bookingsOpen: boolean; coinPremium: number }
+export interface ThemeView { id: ThemeId; accent: string | null; dark: boolean; display?: string; duo?: boolean; tokens: ThemeTokens }
 export interface Quote { product: BookProduct; grams: number; perGram: number; amount: number; exp: number; token: string }
 export interface Booking { ref: string; phone: string; name: string; product: BookProduct; grams: number; perGram: number; amount: number; status: 'requested' | 'confirmed' | 'cancelled' | 'collected'; createdAt: string; note?: string }
 export interface Alert { id: string; row: RowId; above: boolean; mark: number; active: boolean; createdAt: string; triggeredAt?: string; triggeredRate?: number }
-export interface Profile { name: string; tagline: string; city: string; address: string; phone: string; whatsapp: string; taxNote: string; payTerms: string; pickup: string; ratesPublic: boolean }
+export interface Profile { name: string; tagline: string; city: string; address: string; phone: string; whatsapp: string; taxNote: string; payTerms: string; pickup: string; notice: string; ratesPublic: boolean }
 export interface OwnerBanner extends Omit<Banner, 'photo'> { startsOn?: string; endsOn?: string; app: boolean; screen: boolean; on: boolean; order: number; photoUrl: string | null }
 export interface ThemeChoice { id: ThemeId; name: string; note: string; dark: boolean; tokens: ThemeTokens; display: string }
 
 export const api = {
   store: () => call<{ store: StoreInfo; theme: ThemeView; banners: Banner[] }>('/api/store'),
-  me: () => call<{ user: { role: 'buyer' | 'owner'; name?: string; phone?: string; email?: string } | null }>('/api/auth/me'),
+  me: async () => {
+    const r = await call<{ user: { role: 'buyer' | 'owner'; name?: string; phone?: string; email?: string } | null; token?: string }>('/api/auth/me');
+    if (r.token) session.set({ token: r.token, role: 'buyer' });
+    return r;
+  },
   rates: () => call<{ board: Board }>('/api/rates'),
   history: (row: RowId, range: string) => call<{ points: Array<{ at: number; v: number }> }>(`/api/rates/history?row=${row}&range=${range}`),
   requestCode: (phone: string) => post<{ devCode?: string; channel: string }>('/api/auth/otp/request', { phone }),
@@ -69,7 +73,7 @@ export const api = {
   notifications: () => call<{ notifications: Array<{ id: string; text: string; at: string }> }>('/api/notifications'),
   // owner
   settings: () => call<{ desk: Desk; theme: StoreTheme; profile: Profile; themes: ThemeChoice[] }>('/api/admin/settings'),
-  feed: () => call<{ feed: { status: 'live' | 'paused'; at: number; sample: boolean; source: string; base: Record<RowId, number> } | null }>('/api/admin/feed'),
+  feed: () => call<{ feed: { status: 'live' | 'paused'; at: number; sample: boolean; source: string; base: Record<RowId, number>; contracts?: { g: string[]; s: string[] } } | null }>('/api/admin/feed'),
   saveDesk: (d: Desk) => post<{ desk: Desk }>('/api/admin/desk', d, 'PUT'),
   saveTheme: (t: StoreTheme) => post<{ theme: StoreTheme; tokens: ThemeTokens }>('/api/admin/theme', t, 'PUT'),
   saveProfile: (p: Profile) => post<{ profile: Profile }>('/api/admin/profile', p, 'PUT'),
@@ -83,5 +87,5 @@ export const api = {
   setBooking: (ref: string, status: Booking['status']) => post<{ booking: Booking }>(`/api/admin/bookings/${ref}`, { status }, 'PATCH'),
   screenKey: () => call<{ key: string }>('/api/admin/screen'),
   rotateScreenKey: () => post<{ key: string }>('/api/admin/screen/rotate'),
-  screen: (key: string) => call<{ store: { name: string; city: string; address: string; phone: string; taxNote: string }; theme: ThemeView; banners: Banner[]; board: Board }>(`/api/screen?key=${encodeURIComponent(key)}`)
+  screen: (key: string) => call<{ store: { name: string; city: string; address: string; phone: string; taxNote: string; notice: string }; theme: ThemeView; banners: Banner[]; board: Board }>(`/api/screen?key=${encodeURIComponent(key)}`)
 };

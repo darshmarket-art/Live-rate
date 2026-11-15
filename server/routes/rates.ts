@@ -29,8 +29,8 @@ export function rateRoutes(store: Store, cache: StoreCache, hub: FeedHub, broadc
     const p = s.profile;
     res.json({
       status: 'success',
-      store: { id: st.id, name: p.name, tagline: p.tagline, city: p.city, address: p.address, phone: p.phone, whatsapp: p.whatsapp, taxNote: p.taxNote, payTerms: p.payTerms, pickup: p.pickup, ratesPublic: p.ratesPublic, bookingsOpen: s.desk.bookingsOpen, coinPremium: s.desk.coinPremium },
-      theme: { id: s.theme.id, accent: s.theme.accent ?? null, dark: THEMES[s.theme.id]?.dark ?? true, display: THEMES[s.theme.id]?.display, tokens: tokensFor(s.theme) },
+      store: { id: st.id, name: p.name, tagline: p.tagline, city: p.city, address: p.address, phone: p.phone, whatsapp: p.whatsapp, taxNote: p.taxNote, payTerms: p.payTerms, pickup: p.pickup, notice: p.notice, ratesPublic: p.ratesPublic, bookingsOpen: s.desk.bookingsOpen, coinPremium: s.desk.coinPremium },
+      theme: { id: s.theme.id, accent: s.theme.accent ?? null, dark: THEMES[s.theme.id]?.dark ?? true, display: THEMES[s.theme.id]?.display, duo: Boolean(THEMES[s.theme.id]?.duo), tokens: tokensFor(s.theme) },
       banners: liveBanners(banners, 'app').map(publicBanner)
     });
   }));

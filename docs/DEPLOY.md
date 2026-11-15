@@ -1,7 +1,7 @@
 # Deploying Antarixs Live Rate on Google Cloud
 
-Two Cloud Run services from one image, in the same project as the Catalogue (`gen-lang-client-0273003651`, `asia-south1`), behind the
-load balancer that already serves `*.antarixs.com`.
+Two Cloud Run services from one image, in their own project `antarixs-live-rate` (`asia-south1`), behind their own load balancer.
+Fully separate from the Catalogue's project (`gen-lang-client-0273003651`): nothing is shared except the billing account.
 
 ```
 licensed rate API ──(one call per tick)──▶ rate-ingest (1 instance, holds the API key)
@@ -25,15 +25,13 @@ licensed rate API ──(one call per tick)──▶ rate-ingest (1 instance, ho
 ## 1. APIs, Artifact Registry, bucket
 
 ```sh
-export P=gen-lang-client-0273003651 R=asia-south1
+export P=antarixs-live-rate R=asia-south1
 gcloud config set project $P
-gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com firestore.googleapis.com
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com firestore.googleapis.com   compute.googleapis.com certificatemanager.googleapis.com iam.googleapis.com
+gcloud firestore databases create --location=$R --type=firestore-native   # the project's own default database
 gcloud artifacts repositories create live-rate --repository-format=docker --location=$R
 gcloud storage buckets create gs://antarixs-live-rate-media --location=$R --uniform-bucket-level-access
 ```
-
-Firestore: the services use the project's default database. To keep Live Rate's data apart from the Catalogue's, create a named
-database and point both services at it (`FIRESTORE_DATABASE` support is a one-line change in `server/store.ts`; ask before splitting).
 
 ## 2. Service accounts
 
@@ -43,24 +41,44 @@ gcloud iam service-accounts create live-rate --display-name="Live Rate app"
 for sa in rate-ingest live-rate; do
   gcloud projects add-iam-policy-binding $P --member=serviceAccount:$sa@$P.iam.gserviceaccount.com --role=roles/datastore.user
 done
+grant() { for s in "${@:2}"; do gcloud secrets add-iam-policy-binding $s --member=serviceAccount:$1@$P.iam.gserviceaccount.com --role=roles/secretmanager.secretAccessor; done; }
+grant rate-ingest live-rate-jwt live-rate-ingest-token live-rate-feed-key   # after step 3
+grant live-rate live-rate-jwt live-rate-quote live-rate-ingest-token live-rate-master   # plus the WhatsApp secrets when added
 gcloud storage buckets add-iam-policy-binding gs://antarixs-live-rate-media --member=serviceAccount:live-rate@$P.iam.gserviceaccount.com --role=roles/storage.objectAdmin
 # after the first deploy of rate-ingest: only live-rate may call it
 gcloud run services add-iam-policy-binding rate-ingest --region=$R --member=serviceAccount:live-rate@$P.iam.gserviceaccount.com --role=roles/run.invoker
 ```
 
-Cloud Build's service account needs `roles/run.admin`, `roles/iam.serviceAccountUser` and `roles/secretmanager.secretAccessor`.
+Cloud Build runs as `<project-number>-compute@developer.gserviceaccount.com`, which needs:
+
+```sh
+CB=$(gcloud projects describe $P --format='value(projectNumber)')-compute@developer.gserviceaccount.com
+for r in run.admin iam.serviceAccountUser secretmanager.secretAccessor artifactregistry.writer logging.logWriter storage.admin; do
+  gcloud projects add-iam-policy-binding $P --member=serviceAccount:$CB --role=roles/$r
+done
+```
 
 ## 3. Secrets
 
 ```sh
-new() { printf '%s' "$2" | gcloud secrets create $1 --data-file=- ; }
+# the org policy (constraints/gcp.resourceLocations) refuses global secrets, so pin them to asia-south1
+new() { printf '%s' "$2" | gcloud secrets create $1 --replication-policy=user-managed --locations=$R --data-file=- ; }
 new live-rate-jwt "$(openssl rand -hex 32)"
 new live-rate-quote "$(openssl rand -hex 32)"
 new live-rate-ingest-token "$(openssl rand -hex 24)"
 new live-rate-master "$(openssl rand -hex 24)"      # the operator key for creating stores (keep it out of chat and email)
 new live-rate-feed-key "<the provider's API key>"
-# whatsapp-token and whatsapp-phone-id: reuse the Catalogue's if the same WhatsApp number signs buyers in
+new live-rate-whatsapp-token "<WhatsApp Cloud API token>"      # Live Rate's own, not the Catalogue's
+new live-rate-whatsapp-phone-id "<WhatsApp phone number id>"
 ```
+
+WhatsApp is off until the `_WA_SECRETS` substitution is set to
+`,WHATSAPP_TOKEN=live-rate-whatsapp-token:latest,WHATSAPP_PHONE_NUMBER_ID=live-rate-whatsapp-phone-id:latest` and both service
+accounts can read the two secrets (`grant` from step 2). Without them rate alerts show only in the app's Updates.
+
+Sign-in codes go through Renflair, the same gateway as the Catalogue, with Live Rate's own copy of the key (`live-rate-renflair-key`, readable by
+`live-rate` only; `RENFLAIR_API_KEY` on the live-rate service). Buyers verified once stay signed in: every app open renews the session.
+The Meta settings below are only needed for rate alerts (and for codes if Renflair is removed).
 
 WhatsApp templates: `WHATSAPP_OTP_TEMPLATE` (authentication, default `otp`) and, for rate alerts, `WHATSAPP_ALERT_TEMPLATE`
 (utility, body `{{1}}: {{2}} is now {{3}}.` = store, what, rate). Without the alert template, alerts still show in the app's Updates.
@@ -78,6 +96,24 @@ Set these on the Cloud Build trigger (substitutions) once the provider is chosen
 | `_FEED_FX_PATH` | `data.usdinr` | needed when a unit is `oz_usd` |
 | `_FEED_INTERVAL_MS` | `1000` | as often as the licence allows |
 
+Market boxes and MCX (env vars on rate-ingest; not yet trigger substitutions, as the lists hold commas and `=`):
+
+| Variable | Example | Meaning |
+|---|---|---|
+| `FEED_USD_OZ_PATH` / `FEED_COMEX_SILVER_PATH` | `cx.gold` / `cx.silver` | COMEX gold and silver, USD per troy ounce |
+| `FEED_FX_PATH` | `fx.usdinr` | USD-INR |
+| `FEED_MCX_GOLD` | `GOLD DEC 2026=mcx.gold.dec,GOLD FEB 2027=mcx.gold.feb` | MCX gold contracts, INR per 10 g, nearest first |
+| `FEED_MCX_SILVER` | `SILVER DEC 2026=mcx.silver.dec,SILVER MAR 2027=mcx.silver.mar` | MCX silver contracts, INR per kg, nearest first |
+
+With MCX set, every store's rates are its chosen contract plus its margin (owner: Rates → "MCX contract your rates follow"; unset or
+expired: the nearest). Each market keeps the India day's open, high and low. Set them with
+`gcloud run services update rate-ingest --region=asia-south1 --update-env-vars='^@^FEED_MCX_GOLD=…@FEED_MCX_SILVER=…'` and roll the
+contract list forward as contracts expire. The sample feed lists the real upcoming contract months by itself.
+| `_FEED_PROVIDER` | `http` (default) | `sample` only for tests |
+| `_ALLOW_SAMPLE_FEED` | `false` (default) | `true` lets the sample feed run in production |
+
+The first deploy used `_FEED_PROVIDER=sample`, `_ALLOW_SAMPLE_FEED=true` until the provider is chosen.
+
 An `oz_usd` source is converted at the exchange rate only: Indian import duty and GST are not added, so for an international source the
 store margins (or a domestic INR source) must cover them.
 
@@ -90,30 +126,54 @@ curl -X PUT .../api/console/feed/manual -H "X-Master-Key: $MASTER" -H 'Content-T
 
 ## 5. Addresses: `[store].rates.antarixs.com`
 
-On the existing load balancer (`docs/load-balancer-runbook.md` in the Catalogue repo):
+Live Rate's own load balancer:
 
 ```sh
-# a second wildcard certificate (the *.antarixs.com one covers one level only)
+gcloud compute addresses create live-rate-lb-ip --global
+
+# certificate for *.rates.antarixs.com and rates.antarixs.com
 gcloud certificate-manager dns-authorizations create rates-dnsauth --domain=rates.antarixs.com
 gcloud certificate-manager dns-authorizations describe rates-dnsauth   # add the CNAME it shows in DNS, then:
-gcloud certificate-manager certificates create rates-wildcard --domains="*.rates.antarixs.com" --dns-authorizations=rates-dnsauth
-gcloud certificate-manager maps entries create rates-wild --map=antarixs-certmap --certificates=rates-wildcard --hostname="*.rates.antarixs.com"
+gcloud certificate-manager certificates create rates-wildcard-2 --domains="*.rates.antarixs.com,rates.antarixs.com" --dns-authorizations=rates-dnsauth
+gcloud certificate-manager maps create live-rate-certmap
+gcloud certificate-manager maps entries create rates-wild --map=live-rate-certmap --certificates=rates-wildcard-2 --hostname="*.rates.antarixs.com"
+gcloud certificate-manager maps entries create rates-apex --map=live-rate-certmap --certificates=rates-wildcard-2 --hostname=rates.antarixs.com
 
-# live-rate behind the same URL map
+# live-rate behind it
 gcloud compute network-endpoint-groups create live-rate-neg --region=$R --network-endpoint-type=serverless --cloud-run-service=live-rate
-gcloud compute backend-services create live-rate-backend --global --load-balancing-scheme=EXTERNAL_MANAGED --protocol=HTTPS
+gcloud compute backend-services create live-rate-backend --global --load-balancing-scheme=EXTERNAL_MANAGED   # no --protocol=HTTPS or --timeout: serverless NEGs refuse both; live-rate's own 3600 s timeout keeps streams open
 gcloud compute backend-services add-backend live-rate-backend --global --network-endpoint-group=live-rate-neg --network-endpoint-group-region=$R
-gcloud compute backend-services update live-rate-backend --global --timeout=3600   # rate streams stay open
-gcloud compute url-maps add-path-matcher antarixs-urlmap --path-matcher-name=rates --default-service=live-rate-backend --new-hosts="*.rates.antarixs.com"
+gcloud compute url-maps create live-rate-urlmap --global --default-service=live-rate-backend
+gcloud compute target-https-proxies create live-rate-https --global --url-map=live-rate-urlmap --certificate-map=live-rate-certmap
+gcloud compute forwarding-rules create live-rate-https --global --load-balancing-scheme=EXTERNAL_MANAGED --address=live-rate-lb-ip --target-https-proxy=live-rate-https --ports=443
+
+# http -> https
+printf 'name: live-rate-http-redirect
+defaultUrlRedirect: {httpsRedirect: true, redirectResponseCode: MOVED_PERMANENTLY_DEFAULT}
+' |
+  gcloud compute url-maps import live-rate-http-redirect --global --source=-
+gcloud compute target-http-proxies create live-rate-http-proxy --global --url-map=live-rate-http-redirect
+gcloud compute forwarding-rules create live-rate-http --global --load-balancing-scheme=EXTERNAL_MANAGED --address=live-rate-lb-ip --target-http-proxy=live-rate-http-proxy --ports=80
 ```
 
-DNS: one record, `*.rates` → the load balancer's IP (the same `antarixs-lb-ip`). In the Catalogue repo, reserve `rates` as a store name
-so no Catalogue store can take `rates.antarixs.com`.
+DNS:
+
+* CNAME `_acme-challenge.rates.antarixs.com` → the value from `gcloud certificate-manager dns-authorizations describe rates-dnsauth`.
+* A `*.rates` and A `rates` → the IP of `live-rate-lb-ip` (`gcloud compute addresses describe live-rate-lb-ip --global --format='value(address)'`).
+
+In the Catalogue repo, reserve `rates` as a store name so no Catalogue store can take `rates.antarixs.com`.
 
 ## 6. Deploy
 
 Connect this repo to Cloud Build (a trigger on pushes to `main`, using `cloudbuild.yaml`, with the `_FEED_*` substitutions). The build
-runs typecheck and tests, builds one image and deploys `rate-ingest` then `live-rate`.
+runs typecheck and tests, builds one image and deploys `rate-ingest` then `live-rate`. Builds must be regional (location policy), so
+the trigger's region is `asia-south1`.
+
+By hand:
+
+```sh
+gcloud builds submit --region=asia-south1 --config=cloudbuild.yaml   --substitutions=SHORT_SHA=$(git rev-parse --short HEAD),_FEED_PROVIDER=sample,_ALLOW_SAMPLE_FEED=true .
+```
 
 ## 7. First store
 

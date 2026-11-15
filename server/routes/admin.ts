@@ -3,7 +3,7 @@ import express, { Router } from 'express';
 import sharp from 'sharp';
 import { z } from 'zod';
 import { THEMES, checkAccent, tokensFor } from '../../shared/themes';
-import { ROWS, baseFor } from '../../shared/rates';
+import { ROWS, baseFor, storeBase } from '../../shared/rates';
 import type { Auth } from '../auth';
 import type { FeedHub } from '../feed/hub';
 import { MAX_BANNERS, bannerSchema, publicBanner, type Banner } from '../banners';
@@ -24,13 +24,15 @@ export function adminRoutes(store: Store, cache: StoreCache, blobs: Blobs, auth:
   r.get('/settings', handler(async (_req, res) => {
     const st = storeOf(res);
     const s = await cache.get(st.id, st.name);
-    res.json({ status: 'success', ...s, themes: Object.values(THEMES).map(({ id, name, note, dark, tokens, display }) => ({ id, name, note, dark, tokens, display })) });
+    res.json({ status: 'success', ...s, themes: Object.values(THEMES).map(({ id, name, note, dark, tokens, display, duo }) => ({ id, name, note, dark, tokens, display, duo: Boolean(duo) })) });
   }));
 
   /** The feed before this store's margins (owners only: buyers see the store's own rates, never its margin). */
   r.get('/feed', handler(async (_req, res) => {
     const t = hub.latest();
-    res.json({ status: 'success', feed: t ? { status: hub.currentStatus(), at: t.at, sample: Boolean(t.sample), source: t.source, base: Object.fromEntries(ROWS.map((row) => [row.id, Math.round(baseFor(row, t))])) } : null });
+    const st = storeOf(res);
+    const { cur } = t ? storeBase(t, (await cache.get(st.id, st.name)).desk) : { cur: null }; // the store's saved MCX contract
+    res.json({ status: 'success', feed: t ? { status: hub.currentStatus(), at: t.at, sample: Boolean(t.sample), source: t.source, base: Object.fromEntries(ROWS.map((row) => [row.id, Math.round(baseFor(row, cur!))])), contracts: { g: Object.keys(t.mkt?.mcx?.g ?? {}), s: Object.keys(t.mkt?.mcx?.s ?? {}) } } : null });
   }));
 
   r.put('/desk', handler(async (req, res) => {

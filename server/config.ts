@@ -22,6 +22,11 @@ export interface FeedConfig {
   silverUnit: 'g' | 'kg' | 'oz_usd';
   fxPath?: string;
   usdOzPath?: string;
+  /** COMEX silver (USD/oz). */
+  comexSilverPath?: string;
+  /** MCX futures as "CONTRACT=path" lists, nearest first: gold INR per 10 g, silver INR per kg. With them, rates follow MCX. */
+  mcxGold?: string;
+  mcxSilver?: string;
   /** A tick that moves more than this fraction from the last is held back until the next one agrees. */
   spikeFraction: number;
 }
@@ -44,6 +49,8 @@ export interface Config {
   ingestToken?: string;
   bucket?: string;
   otpStaticCode?: string;
+  /** Renflair WhatsApp OTP gateway (the Catalogue's sender): sign-in codes only. Wins over Meta for codes when set. */
+  renflair?: { apiKey: string; baseUrl: string };
   whatsapp?: { token: string; phoneNumberId: string; template: string; language: string; apiVersion: string; alertTemplate?: string };
   feed: FeedConfig;
   staleMs: number;
@@ -80,6 +87,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     ingestToken: env.INGEST_TOKEN || undefined,
     bucket: env.BUCKET || undefined,
     otpStaticCode: env.OTP_STATIC_CODE || undefined,
+    renflair: env.RENFLAIR_API_KEY?.trim() ? { apiKey: env.RENFLAIR_API_KEY.trim(), baseUrl: (env.RENFLAIR_BASE_URL?.trim() || 'https://whatsapp.renflair.in').replace(/\/+$/, '') } : undefined,
     whatsapp: wa,
     staleMs: num(env.STALE_MS, 30_000),
     feed: {
@@ -94,6 +102,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       silverUnit: (['g', 'kg', 'oz_usd'].includes(env.FEED_SILVER_UNIT ?? '') ? env.FEED_SILVER_UNIT : 'kg') as FeedConfig['silverUnit'],
       fxPath: env.FEED_FX_PATH,
       usdOzPath: env.FEED_USD_OZ_PATH,
+      comexSilverPath: env.FEED_COMEX_SILVER_PATH,
+      mcxGold: env.FEED_MCX_GOLD,
+      mcxSilver: env.FEED_MCX_SILVER,
       spikeFraction: num(env.FEED_SPIKE_FRACTION, 0.03)
     }
   };

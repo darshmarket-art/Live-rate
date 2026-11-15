@@ -25,17 +25,19 @@ export interface Profile {
   /** Shown before a buyer books, e.g. "Pay within 24 hours". */
   payTerms: string;
   pickup: string;
+  /** The owner's notice, scrolling in a thin band above the rates (and on the shop screen). Empty: no band. */
+  notice: string;
   /** Rates visible without signing in (bookings and alerts always need sign-in). */
   ratesPublic: boolean;
 }
 
-export const DEFAULT_PROFILE = (name: string): Profile => ({ name, tagline: '', city: '', address: '', phone: '', whatsapp: '', taxNote: '', payTerms: '', pickup: '', ratesPublic: false });
+export const DEFAULT_PROFILE = (name: string): Profile => ({ name, tagline: '', city: '', address: '', phone: '', whatsapp: '', taxNote: '', payTerms: '', pickup: '', notice: '', ratesPublic: false });
 
 const txt = (n: number) => z.string().trim().max(n);
 export const profileSchema = z.object({
   name: txt(60).min(2), tagline: txt(80), city: txt(60), address: txt(200),
   phone: txt(20).regex(/^[0-9 +-]*$/, 'digits, spaces, + and - only'), whatsapp: z.string().trim().regex(/^(\d{10,15})?$/, 'country code and number, digits only'),
-  taxNote: txt(120), payTerms: txt(160), pickup: txt(120), ratesPublic: z.boolean()
+  taxNote: txt(120), payTerms: txt(160), pickup: txt(120), notice: txt(300).default(''), ratesPublic: z.boolean()
 });
 
 const money = z.number().int().min(0).max(1_000_000);
@@ -45,7 +47,8 @@ export const deskSchema = z.object({
   rows: z.array(z.enum(ROW_IDS)).min(1).max(ROW_IDS.length).refine((r) => new Set(r).size === r.length, 'each row once'),
   bookingsOpen: z.boolean(),
   fixed: z.object(Object.fromEntries(ROW_IDS.map((id) => [id, z.number().int().min(1).max(100_000_000).optional()]))),
-  coinPremium: z.number().min(0).max(100_000)
+  coinPremium: z.number().min(0).max(100_000),
+  mcx: z.object({ g: z.string().trim().max(40).optional(), s: z.string().trim().max(40).optional() }).default({})
 });
 
 export const themeSchema = z.object({ id: z.enum(THEME_IDS), accent: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional() });
@@ -68,7 +71,7 @@ export class StoreCache {
   private async load(id: string, name: string): Promise<Settings> {
     const [desk, theme, profile] = await this.store.getMany(scoped(id, 'settings'), ['desk', 'theme', 'profile']);
     const v: Settings = {
-      desk: { ...DEFAULT_DESK, ...(desk as Desk | null), margins: { ...DEFAULT_DESK.margins, ...((desk as Desk | null)?.margins ?? {}) }, fixed: { ...((desk as Desk | null)?.fixed ?? {}) } },
+      desk: { ...DEFAULT_DESK, ...(desk as Desk | null), margins: { ...DEFAULT_DESK.margins, ...((desk as Desk | null)?.margins ?? {}) }, fixed: { ...((desk as Desk | null)?.fixed ?? {}) }, mcx: { ...((desk as Desk | null)?.mcx ?? {}) } },
       theme: (theme as StoreTheme | null) ?? { id: DEFAULT_THEME },
       profile: { ...DEFAULT_PROFILE(name), ...(profile as Profile | null) }
     };

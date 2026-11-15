@@ -1,9 +1,27 @@
 /**
  * The rate model shared by the feed, the server and the app.
  *
- * The feed gives two base prices in rupees per gram: fine gold (24K, 999) and fine silver (999). Everything a store shows is derived from
- * those two numbers here, so every store, every phone and every shop screen agree to the rupee.
+ * The feed gives two base prices in rupees per gram: fine gold (24K, 999) and fine silver (999). When the provider gives MCX futures, those
+ * two numbers are the MCX prices (gold per 10 g / 10, silver per kg / 1000), so every store's buy and sell follow MCX, not spot.
+ * Everything a store shows is derived from them here, so every store, every phone and every shop screen agree to the rupee.
  */
+
+/** One market's price with the India day's open, high and low. */
+export interface MktQuote { v: number; o: number; h: number; l: number }
+/** COMEX gold and silver (USD per troy ounce) and USD-INR. */
+export const MKT_IDS = ['comexG', 'comexS', 'fx'] as const;
+export type MktId = (typeof MKT_IDS)[number];
+/** MCX futures by contract ("GOLD DEC 2026": INR per 10 g; "SILVER DEC 2026": INR per kg), nearest expiry first. */
+export interface McxBook { g?: Record<string, MktQuote>; s?: Record<string, MktQuote> }
+export type Market = Partial<Record<MktId, MktQuote>> & { mcx?: McxBook };
+/** The contract a store follows: its owner's choice while the feed carries it, else the nearest. */
+export const pickContract = (book: Record<string, MktQuote> | undefined, want?: string) => {
+  const names = book ? Object.keys(book) : [];
+  return names.length ? (want && book![want] ? want : names[0]) : undefined;
+};
+
+/** Folds a new price into the day's quote (a new day starts from it). */
+export const nextQuote = (v: number, prev?: MktQuote): MktQuote => (prev ? { v, o: prev.o, h: Math.max(prev.h, v), l: Math.min(prev.l, v) } : { v, o: v, h: v, l: v });
 
 /** One reading of the feed. `g` and `s` are INR per gram (24K gold, silver 999). */
 export interface Tick {
@@ -11,9 +29,8 @@ export interface Tick {
   at: number;
   g: number;
   s: number;
-  /** International reference, when the provider gives it. */
-  usdOz?: number;
-  fx?: number;
+  /** COMEX, USD-INR and MCX with the day's high and low, when the provider gives them. */
+  mkt?: Market;
   /** The first reading of the day (India time), for "change since opening". */
   open: { g: number; s: number };
   /** True only for the development sample feed: every screen then says the rates are not market rates. */
@@ -57,6 +74,8 @@ export interface Desk {
   fixed: Partial<Record<RowId, number>>;
   /** Extra rupees per gram on 24K coins over the 24K bar rate. */
   coinPremium: number;
+  /** The MCX contract the store's rates follow, per metal (a name from the feed, e.g. "GOLD FEB 2027"). Unset: the nearest. */
+  mcx: { g?: string; s?: string };
 }
 
 export const DEFAULT_DESK: Desk = {
@@ -65,7 +84,8 @@ export const DEFAULT_DESK: Desk = {
   rows: ['g24', 'g22', 'g18', 'ag'],
   bookingsOpen: false,
   fixed: {},
-  coinPremium: 0
+  coinPremium: 0,
+  mcx: {}
 };
 
 export const roundTo = (n: number, step: number) => (step > 0 ? Math.round(n / step) * step : Math.round(n));
@@ -95,7 +115,10 @@ export interface Board {
   sample: boolean;
   source: Tick['source'];
   rows: BoardRow[];
-  spot?: { usdOz?: number; fx?: number };
+  /** COMEX and USD-INR with the day's high and low. */
+  mkt?: Partial<Record<MktId, MktQuote>>;
+  /** The MCX contract this store follows, per metal. */
+  mcx?: { g?: { name: string; q: MktQuote }; s?: { name: string; q: MktQuote } };
 }
 
 /** Stale after this long without a tick: every board says "Rates paused" and booking stops. */
@@ -106,20 +129,35 @@ export function statusOf(tick: Tick | null, now = Date.now(), staleMs = STALE_MS
 }
 
 /** One store's board from one tick. Pure: every live-rate instance computes the same rows. */
+/** A store's base per gram now and at the day's opening: its MCX contract (gold per 10 g, silver per kg) when the feed gives MCX. */
+export function storeBase(tick: Tick, desk: Pick<Desk, 'mcx'>) {
+  const book = tick.mkt?.mcx;
+  const cg = pickContract(book?.g, desk.mcx?.g), cs = pickContract(book?.s, desk.mcx?.s);
+  const qg = cg ? book!.g![cg] : undefined, qs = cs ? book!.s![cs] : undefined;
+  return {
+    cur: { g: qg ? qg.v / 10 : tick.g, s: qs ? qs.v / 1000 : tick.s },
+    opening: { g: qg ? qg.o / 10 : tick.open.g, s: qs ? qs.o / 1000 : tick.open.s },
+    cg, cs, qg, qs
+  };
+}
+
 export function boardFor(tick: Tick, desk: Desk, now = Date.now()): Board {
+  const { cur, opening, cg, cs, qg, qs } = storeBase(tick, desk);
   const rows = desk.rows.map((id) => {
     const def = rowDef(id);
     const m = desk.margins[id] ?? { buy: 0, sell: 0 };
     const hand = desk.fixed[id];
-    const base = baseFor(def, tick);
-    const open = baseFor(def, tick.open);
+    const base = baseFor(def, cur);
+    const open = baseFor(def, opening);
     const buy = roundTo(hand ?? base + m.buy, desk.round);
     const sell = roundTo((hand !== undefined ? hand - m.buy : base) - m.sell, desk.round);
     const openBuy = roundTo(open + m.buy, desk.round);
     const change = hand !== undefined ? 0 : buy - openBuy;
     return { id, name: def.name, unit: def.unit, buy, sell, change, changePct: openBuy ? Math.round((change / openBuy) * 10000) / 100 : 0, fixed: hand !== undefined };
   });
-  return { status: statusOf(tick, now), at: tick.at, sample: Boolean(tick.sample), source: tick.source, rows, spot: tick.usdOz || tick.fx ? { usdOz: tick.usdOz, fx: tick.fx } : undefined };
+  return { status: statusOf(tick, now), at: tick.at, sample: Boolean(tick.sample), source: tick.source, rows,
+    ...(tick.mkt ? { mkt: Object.fromEntries(MKT_IDS.filter((k) => tick.mkt![k]).map((k) => [k, tick.mkt![k]])) } : {}),
+    ...(qg || qs ? { mcx: { ...(qg ? { g: { name: cg!, q: qg } } : {}), ...(qs ? { s: { name: cs!, q: qs } } : {}) } } : {}) };
 }
 
 /** What a buyer pays per gram for a booking product. */

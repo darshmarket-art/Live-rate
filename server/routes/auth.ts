@@ -41,7 +41,7 @@ export function authRoutes(config: Config, store: Store, auth: Auth, messenger: 
     const code = config.otpStaticCode ?? String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
     await store.set(scoped(st.id, 'otps'), phone, { hash: hash(st.id, phone, code), sentAt: Date.now(), expiresAt: Date.now() + CODE_TTL_MS, tries: 0 });
     await messenger.sendCode(phone, code);
-    res.json({ status: 'success', channel: config.whatsapp ? 'whatsapp' : 'dev', ...(config.otpStaticCode && !config.production ? { devCode: config.otpStaticCode } : {}) });
+    res.json({ status: 'success', channel: config.renflair || config.whatsapp ? 'whatsapp' : 'dev', ...(config.otpStaticCode && !config.production ? { devCode: config.otpStaticCode } : {}) });
   }));
 
   r.post('/otp/verify', limiter, handler(async (req, res) => {
@@ -78,7 +78,8 @@ export function authRoutes(config: Config, store: Store, auth: Auth, messenger: 
     if (!s) return void res.json({ status: 'success', user: null });
     if (s.role === 'owner') return void res.json({ status: 'success', user: { role: 'owner', email: s.sub } });
     const b = await store.get<Buyer>(scoped(s.store, 'buyers'), s.sub);
-    res.json({ status: 'success', user: b ? { role: 'buyer', phone: b.phone, name: b.name } : null });
+    // a buyer who keeps opening the app is never asked for a code again: each visit renews the sign-in
+    res.json({ status: 'success', user: b ? { role: 'buyer', phone: b.phone, name: b.name } : null, ...(b ? { token: auth.sign({ sub: b.phone, store: s.store, role: 'buyer' }) } : {}) });
   }));
 
   return r;

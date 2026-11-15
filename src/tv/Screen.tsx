@@ -4,6 +4,7 @@ import { api, withStore, type Banner } from '../api';
 import { Arrow } from '../icons';
 import { useBoard } from '../live';
 import { applyTheme } from '../theme';
+import { MarketBoxes, McxBoard, Ticker } from '../screens/Market';
 
 /** The shop TV: large live rates on the left, the store's banners full height on the right. Opened with the owner's screen link. */
 export const Screen: React.FC = () => {
@@ -14,7 +15,7 @@ export const Screen: React.FC = () => {
   const [now, setNow] = useState(Date.now());
   const { board, flash } = useBoard(`/api/screen/stream?key=${encodeURIComponent(key)}`, Boolean(info));
   useEffect(() => {
-    const load = () => api.screen(key).then((r) => { setInfo(r); applyTheme(r.theme.tokens, r.theme.display); setError(null); }).catch((e) => setError(e.message));
+    const load = () => api.screen(key).then((r) => { setInfo(r); applyTheme(r.theme.tokens, r.theme.display, r.theme.duo); setError(null); }).catch((e) => setError(e.message));
     void load();
     const t = setInterval(load, 60_000); // banners and theme changes reach the screen within a minute
     return () => clearInterval(t);
@@ -41,8 +42,9 @@ export const Screen: React.FC = () => {
             <span className="mut" style={{ fontSize: vw(16) }}>{new Date(now).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
           </span>
         </header>
+        <div className="tv-mkt"><MarketBoxes mkt={b.mkt} /></div>
         <div className="tv-grid" style={{ padding: `${vw(26)} 0 ${vw(14)}`, fontSize: vw(15), fontWeight: 500, letterSpacing: '.24em', textTransform: 'uppercase', color: 'var(--mut)' }}>
-          <span>Per 10 g · silver per kg</span><span style={{ textAlign: 'right' }}>You buy</span><span style={{ textAlign: 'right' }}>You sell</span>
+          <span>Rates</span><span /><span style={{ textAlign: 'right' }}>Rate</span>
         </div>
         {b.rows.map((r) => (
           <div key={r.id} className={`tv-grid rrow${flash[r.id] ? ` f-${flash[r.id]}` : ''}`} style={{ minHeight: vw(150), padding: 0, borderTop: '1px solid var(--hair)', borderBottom: 0, cursor: 'default' }}>
@@ -50,11 +52,13 @@ export const Screen: React.FC = () => {
               <span className="ser" style={{ fontSize: vw(50) }}>{r.name}</span>
               {!r.fixed && <span className={`chg ${r.change > 0 ? 'up' : r.change < 0 ? 'dn' : 'mut'}`} style={{ fontSize: vw(20) }}>{r.change !== 0 && <Arrow up={r.change > 0} size={16} />}{`${r.change >= 0 ? '+' : '−'}₹${inr(Math.abs(r.change))} today`}</span>}
             </span>
+            <span className="mut" style={{ fontSize: vw(20), textAlign: 'right' }}>per {r.unit}</span>
             <span className="rate num" style={{ fontSize: vw(56) }}>₹{inr(r.buy)}</span>
-            <span className="rate num" style={{ fontSize: vw(56) }}>₹{inr(r.sell)}</span>
           </div>
         ))}
+        <div className="tv-mkt"><McxBoard mcx={b.mcx} /></div>
         <div className="grow" />
+        <div className="tv-tick"><Ticker text={info.store.notice ?? ''} /></div>
         <footer className="row sb" style={{ height: vw(96), borderTop: '1px solid var(--hair)', fontSize: vw(18), color: 'var(--mut)' }}>
           <span>{[info.store.address, info.store.phone].filter(Boolean).join(' · ')}</span>
           <span>{[info.store.taxNote, b.sample ? 'Sample feed, not market rates' : ''].filter(Boolean).join(' · ')}</span>

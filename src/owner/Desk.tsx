@@ -51,6 +51,19 @@ export const Desk: React.FC = () => {
         <button type="button" className="sw" aria-pressed={desk.bookingsOpen} aria-label="Bookings open" onClick={() => setDesk({ ...desk, bookingsOpen: !desk.bookingsOpen })}><i /></button>
       </section>
 
+      {feed?.contracts && (feed.contracts.g.length > 0 || feed.contracts.s.length > 0) && (
+        <section className="col" style={{ padding: '18px 20px 0' }}>
+          <span className="xs mut" style={{ paddingBottom: 4 }}>MCX contract your rates follow</span>
+          {(['g', 's'] as const).map((m) => feed.contracts![m].length > 0 && (
+            <div key={m} className="kv"><span>{m === 'g' ? 'Gold' : 'Silver'}</span>
+              <select aria-label={`MCX ${m === 'g' ? 'gold' : 'silver'} contract`} value={desk.mcx?.[m] && feed.contracts![m].includes(desk.mcx[m]!) ? desk.mcx[m] : feed.contracts![m][0]} onChange={(e) => setDesk({ ...desk, mcx: { ...desk.mcx, [m]: e.target.value } })} style={{ background: 'none', border: 0, borderBottom: '1px solid var(--ink)', minHeight: 36 }}>
+                {feed.contracts![m].map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          ))}
+        </section>
+      )}
+
       <section className="col" style={{ padding: '18px 20px 0', gap: 12 }}>
         <span className="row sb"><span className="xs mut">Your margin on the feed</span><span className="xs mut">Buyers see</span></span>
         {ROWS.map((row) => {

@@ -62,7 +62,7 @@ export const App: React.FC = () => {
     try {
       const d = await api.store();
       setData(d);
-      if (!location.pathname.startsWith('/owner')) applyTheme(d.theme.tokens, d.theme.display);
+      if (!location.pathname.startsWith('/owner')) applyTheme(d.theme.tokens, d.theme.display, d.theme.duo);
       if (session.get()) setUser((await api.me()).user);
     } catch (e: any) {
       setFailed(e?.status === 404 ? 'There is no store at this address.' : 'Could not reach the store. Check the connection and try again.');

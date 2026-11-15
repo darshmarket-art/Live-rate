@@ -30,6 +30,7 @@ export const StoreSettings: React.FC = () => {
         {f('address', 'Address', '', 200)}
         {f('phone', 'Phone', '+91 …', 20)}
         {f('whatsapp', 'WhatsApp (country code and number, digits only)', '919876543210', 15)}
+        {f('notice', 'Notice (scrolls above the rates and on the shop screen; empty to hide)', 'e.g. No making charges on coins till 20 Nov · Open 10 am to 9 pm', 300)}
         {f('taxNote', 'Note under the rates', 'e.g. GST extra')}
         {f('payTerms', 'Payment terms (shown before booking)', 'e.g. Pay within 24 hours', 160)}
         {f('pickup', 'Collection', 'e.g. From the store, Mon to Sat 11 to 7')}

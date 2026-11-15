@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_DESK, boardFor, perGram, roundTo, statusOf, type Desk, type Tick } from '../shared/rates';
+import { DEFAULT_DESK, boardFor, nextQuote, perGram, roundTo, statusOf, type Desk, type Tick } from '../shared/rates';
 import { checkAccent, contrast, THEMES, THEME_IDS, tokensFor } from '../shared/themes';
-import { GRAMS_PER_TROY_OZ, toReading } from '../server/feed/provider';
+import { GRAMS_PER_TROY_OZ, mcxContracts, toReading } from '../server/feed/provider';
 
 const tick = (g = 12800, s = 152, extra: Partial<Tick> = {}): Tick => ({ at: Date.now(), g, s, open: { g: 12750, s: 150 }, source: 'feed', ...extra });
 const desk = (d: Partial<Desk> = {}): Desk => ({ ...DEFAULT_DESK, margins: { g24: { buy: 450, sell: 900 }, g22: { buy: 400, sell: 1600 }, g18: { buy: 350, sell: 1800 }, ag: { buy: 800, sell: 1500 } }, ...d });
@@ -46,7 +46,37 @@ describe('reading a provider', () => {
   it('converts USD per troy ounce with the exchange rate', () => {
     const r = toReading({ x: 4000, y: 50, fx: 88 }, { goldPath: 'x', goldUnit: 'oz_usd', silverPath: 'y', silverUnit: 'oz_usd', fxPath: 'fx' });
     expect(r.g).toBeCloseTo((4000 * 88) / GRAMS_PER_TROY_OZ, 6);
-    expect(r.usdOz).toBe(4000);
+    expect(r.comexG).toBe(4000);
+    expect(r.comexS).toBe(50);
+  });
+  it('reads MCX futures per contract and bases the feed on the nearest (gold per 10 g, silver per kg)', () => {
+    const json = { g: { dec: '1,25,000', feb: 125800 }, s: { dec: 152000 }, cx: { g: 4000, s: 48 }, fx: 88 };
+    const r = toReading(json, { ...c, mcxGold: 'GOLD DEC 2026=g.dec, GOLD FEB 2027=g.feb', mcxSilver: 'SILVER DEC 2026=s.dec', usdOzPath: 'cx.g', comexSilverPath: 'cx.s', fxPath: 'fx' });
+    expect(r).toMatchObject({ g: 12500, s: 152, comexG: 4000, comexS: 48, fx: 88, mcx: { g: { 'GOLD DEC 2026': 125000, 'GOLD FEB 2027': 125800 }, s: { 'SILVER DEC 2026': 152000 } } });
+  });
+  it('lists the MCX contracts still trading', () => {
+    const ist = (iso: string) => Date.parse(`${iso}T12:00:00+05:30`);
+    expect(mcxContracts('g', ist('2026-11-16'))).toEqual(['GOLD DEC 2026', 'GOLD FEB 2027', 'GOLD APR 2027']);
+    expect(mcxContracts('s', ist('2026-11-16'))).toEqual(['SILVER DEC 2026', 'SILVER MAR 2027', 'SILVER MAY 2027']);
+    expect(mcxContracts('g', ist('2026-12-05'))[0]).toBe('GOLD DEC 2026'); // trades through its expiry day
+    expect(mcxContracts('g', ist('2026-12-06'))[0]).toBe('GOLD FEB 2027');
+  });
+  it('prices a store from the MCX contract its owner follows, else the nearest', () => {
+    const q = (v: number, o = v) => ({ v, o, h: v, l: v });
+    const t = tick(12500, 152, { mkt: { mcx: { g: { 'GOLD DEC 2026': q(125000, 124000), 'GOLD FEB 2027': q(126000) }, s: { 'SILVER DEC 2026': q(152000) } } } });
+    const near = boardFor(t, { ...DEFAULT_DESK, round: 1 });
+    expect(near.rows.find((r) => r.id === 'g24')!.buy).toBe(125000);
+    expect(near.rows.find((r) => r.id === 'g24')!.change).toBe(1000);
+    expect(near.mcx?.g?.name).toBe('GOLD DEC 2026');
+    const feb = boardFor(t, { ...DEFAULT_DESK, round: 1, mcx: { g: 'GOLD FEB 2027' } });
+    expect(feb.rows.find((r) => r.id === 'g24')!.buy).toBe(126000);
+    expect(feb.mcx?.g?.name).toBe('GOLD FEB 2027');
+    expect(boardFor(t, { ...DEFAULT_DESK, mcx: { g: 'GOLD JUN 2030' } }).mcx?.g?.name).toBe('GOLD DEC 2026'); // gone from the feed: nearest
+  });
+  it('keeps the day high and low of each market', () => {
+    let q = nextQuote(100);
+    q = nextQuote(104, q); q = nextQuote(98, q); q = nextQuote(101, q);
+    expect(q).toEqual({ v: 101, o: 100, h: 104, l: 98 });
   });
   it('refuses a missing or zero rate rather than inventing one', () => {
     expect(() => toReading({ data: { gold: 0, silver: 1 } }, c)).toThrow(/gold/);

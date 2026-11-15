@@ -29,8 +29,8 @@ export function screenRoutes(store: Store, cache: StoreCache, hub: FeedHub, broa
     const banners = liveBanners(await store.list<Banner>(scoped(st.id, 'banners')), 'screen').map(publicBanner);
     res.json({
       status: 'success',
-      store: { name: s.profile.name, city: s.profile.city, address: s.profile.address, phone: s.profile.phone, taxNote: s.profile.taxNote },
-      theme: { id: s.theme.id, dark: THEMES[s.theme.id]?.dark ?? true, display: THEMES[s.theme.id]?.display, tokens: tokensFor(s.theme) },
+      store: { name: s.profile.name, city: s.profile.city, address: s.profile.address, phone: s.profile.phone, taxNote: s.profile.taxNote, notice: s.profile.notice },
+      theme: { id: s.theme.id, dark: THEMES[s.theme.id]?.dark ?? true, display: THEMES[s.theme.id]?.display, duo: Boolean(THEMES[s.theme.id]?.duo), tokens: tokensFor(s.theme) },
       banners,
       board: currentBoard(hub.latest(), hub.currentStatus(), s.desk)
     });

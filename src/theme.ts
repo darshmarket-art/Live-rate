@@ -1,7 +1,8 @@
 import type { ThemeTokens } from '../shared/themes';
 
 /** Puts a theme's tokens on the page (the server already painted the store's theme; this follows a change made while open). */
-export function applyTheme(t: ThemeTokens, display?: string) {
+export function applyTheme(t: ThemeTokens, display?: string, duo = false) {
+  document.documentElement.toggleAttribute('data-duo', duo);
   const r = document.documentElement.style;
   const set: Record<string, string> = { bg: t.bg, bg2: t.bg2, bg3: t.bg3, ink: t.ink, mut: t.mut, hair: t.hair, accent: t.accent, 'on-accent': t.onAccent, up: t.up, dn: t.dn, btn: t.btn, 'on-btn': t.onBtn };
   for (const [k, v] of Object.entries(set)) r.setProperty(`--${k}`, v);

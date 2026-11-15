@@ -1,7 +1,29 @@
 import type { FeedConfig } from '../config';
 
-/** One reading from a provider, in rupees per gram of fine metal. */
-export interface Reading { g: number; s: number; usdOz?: number; fx?: number }
+/** One reading from a provider: rupees per gram of fine metal (from MCX when given), and the market prices behind it. */
+export interface Reading { g: number; s: number; comexG?: number; comexS?: number; fx?: number; mcx?: { g?: Record<string, number>; s?: Record<string, number> } }
+
+const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+/**
+ * The next `n` MCX contracts of a metal that have not expired: gold trades Feb, Apr, Jun, Aug, Oct and Dec, silver Mar, May, Jul, Sep and
+ * Dec, each expiring on the 5th (taken as the end of that day, India time). Names as MCX prints them: "GOLD DEC 2026".
+ */
+export function mcxContracts(metal: 'g' | 's', now = Date.now(), n = 3): string[] {
+  const months = metal === 'g' ? [2, 4, 6, 8, 10, 12] : [3, 5, 7, 9, 12];
+  const ist = new Date(now + 5.5 * 3600_000);
+  let y = ist.getUTCFullYear(), m = ist.getUTCMonth() + 1;
+  if (ist.getUTCDate() > 5) m++;
+  const out: string[] = [];
+  while (out.length < n) {
+    if (m > 12) { m = 1; y++; }
+    if (months.includes(m)) out.push(`${metal === 'g' ? 'GOLD' : 'SILVER'} ${MONTHS[m - 1]} ${y}`);
+    m++;
+  }
+  return out;
+}
+
+/** "GOLD DEC 2026=data.gold.dec, GOLD FEB 2027=data.gold.feb" into [name, path] pairs, nearest first as written. */
+export const contractPaths = (list?: string) => (list ?? '').split(',').map((x) => x.split('=').map((p) => p.trim())).filter((p): p is [string, string] => p.length === 2 && Boolean(p[0] && p[1]));
 
 export interface FeedProvider {
   readonly kind: 'http' | 'sample';
@@ -29,7 +51,7 @@ const asNumber = (v: unknown, what: string): number => {
 export class HttpJsonProvider implements FeedProvider {
   readonly kind = 'http' as const;
   constructor(private c: FeedConfig, private fetchFn: typeof fetch = fetch) {
-    if (!c.url || !c.goldPath || !c.silverPath) throw new Error('FEED_PROVIDER=http needs FEED_URL, FEED_GOLD_PATH and FEED_SILVER_PATH.');
+    if (!c.url || !(c.goldPath || c.mcxGold) || !(c.silverPath || c.mcxSilver)) throw new Error('FEED_PROVIDER=http needs FEED_URL and gold and silver (FEED_MCX_GOLD / FEED_MCX_SILVER, or FEED_GOLD_PATH / FEED_SILVER_PATH).');
   }
   async read(): Promise<Reading> {
     const ctrl = new AbortController();
@@ -45,8 +67,14 @@ export class HttpJsonProvider implements FeedProvider {
 }
 
 /** Converts a provider's JSON into rupees per gram using the configured paths and units. */
-export function toReading(json: unknown, c: Pick<FeedConfig, 'goldPath' | 'goldUnit' | 'silverPath' | 'silverUnit' | 'fxPath' | 'usdOzPath'>): Reading {
-  const fx = c.fxPath ? asNumber(pick(json, c.fxPath), 'USD-INR rate') : undefined;
+export function toReading(json: unknown, c: Pick<FeedConfig, 'goldPath' | 'goldUnit' | 'silverPath' | 'silverUnit' | 'fxPath' | 'usdOzPath' | 'comexSilverPath' | 'mcxGold' | 'mcxSilver'>): Reading {
+  const opt = (path: string | undefined, what: string) => (path ? asNumber(pick(json, path), what) : undefined);
+  const fx = opt(c.fxPath, 'USD-INR rate');
+  const book = (list?: string) => {
+    const pairs = contractPaths(list);
+    return pairs.length ? Object.fromEntries(pairs.map(([name, path]) => [name, asNumber(pick(json, path), name)])) : undefined;
+  };
+  const mcxG = book(c.mcxGold), mcxS = book(c.mcxSilver);
   const perGram = (raw: number, unit: string, what: string) => {
     if (unit === 'g') return raw;
     if (unit === '10g') return raw / 10;
@@ -57,23 +85,33 @@ export function toReading(json: unknown, c: Pick<FeedConfig, 'goldPath' | 'goldU
     }
     throw new Error(`Unknown unit ${unit}.`);
   };
-  const g = perGram(asNumber(pick(json, c.goldPath), 'gold rate'), c.goldUnit, 'Gold');
-  const s = perGram(asNumber(pick(json, c.silverPath), 'silver rate'), c.silverUnit, 'Silver');
-  const usdOz = c.usdOzPath ? asNumber(pick(json, c.usdOzPath), 'spot gold') : c.goldUnit === 'oz_usd' ? asNumber(pick(json, c.goldPath), 'spot gold') : undefined;
-  return { g, s, usdOz, fx };
+  // the base follows the nearest MCX contract (per 10 g / per kg) when the provider gives MCX, else the configured gold and silver rates;
+  // each store's board then follows its own chosen contract (shared/rates.ts boardFor)
+  const near = (b?: Record<string, number>) => (b ? Object.values(b)[0] : undefined);
+  const g = mcxG ? near(mcxG)! / 10 : perGram(asNumber(pick(json, c.goldPath), 'gold rate'), c.goldUnit, 'Gold');
+  const s = mcxS ? near(mcxS)! / 1000 : perGram(asNumber(pick(json, c.silverPath), 'silver rate'), c.silverUnit, 'Silver');
+  const comexG = opt(c.usdOzPath, 'COMEX gold') ?? (c.goldUnit === 'oz_usd' && c.goldPath ? asNumber(pick(json, c.goldPath), 'COMEX gold') : undefined);
+  const comexS = opt(c.comexSilverPath, 'COMEX silver') ?? (c.silverUnit === 'oz_usd' && c.silverPath ? asNumber(pick(json, c.silverPath), 'COMEX silver') : undefined);
+  return { g, s, comexG, comexS, fx, ...(mcxG || mcxS ? { mcx: { ...(mcxG ? { g: mcxG } : {}), ...(mcxS ? { s: mcxS } : {}) } } : {}) };
 }
 
 /** Development only: a gentle random walk. Every screen that shows it says "Sample feed, not market rates". */
 export class SampleProvider implements FeedProvider {
   readonly kind = 'sample' as const;
-  private g = 12800;
-  private s = 152;
-  private usd = 3990;
+  private cg = 4010;
+  private cs = 48.2;
+  private fx = 88.62;
   async read(): Promise<Reading> {
-    this.g = Math.max(1000, this.g + (Math.random() - 0.48) * 6);
-    this.s = Math.max(10, this.s + (Math.random() - 0.48) * 0.25);
-    this.usd = this.usd + (Math.random() - 0.48) * 2;
-    return { g: this.g, s: this.s, usdOz: Math.round(this.usd * 10) / 10, fx: 88.62 };
+    const walk = (v: number, step: number) => Math.max(step, v + (Math.random() - 0.49) * step);
+    this.cg = walk(this.cg, 1.5);
+    this.cs = walk(this.cs, 0.03);
+    this.fx = walk(this.fx, 0.004);
+    // MCX sits above COMEX × USD-INR by import duty and premium (roughly 10% on gold, 12% on silver); later contracts carry a little more
+    const g0 = (this.cg * this.fx * 10 * 1.1) / GRAMS_PER_TROY_OZ;
+    const s0 = (this.cs * this.fx * 1000 * 1.12) / GRAMS_PER_TROY_OZ;
+    const g = Object.fromEntries(mcxContracts('g').map((name, i) => [name, Math.round(g0 * (1 + 0.006 * i))]));
+    const s = Object.fromEntries(mcxContracts('s').map((name, i) => [name, Math.round(s0 * (1 + 0.009 * i))]));
+    return { g: Object.values(g)[0] / 10, s: Object.values(s)[0] / 1000, comexG: Math.round(this.cg * 10) / 10, comexS: Math.round(this.cs * 1000) / 1000, fx: Math.round(this.fx * 10000) / 10000, mcx: { g, s } };
   }
 }
 

@@ -85,7 +85,7 @@ export function createLiveApp(d: LiveDeps) {
     const rec = id ? await cache.record(id).catch(() => null) : null;
     if (!rec) return html;
     const s = await cache.get(rec.id, rec.name);
-    return renderIndex(html, { name: s.profile.name, tokens: tokensFor(s.theme), display: THEMES[s.theme.id]?.display });
+    return renderIndex(html, { name: s.profile.name, tokens: tokensFor(s.theme), display: THEMES[s.theme.id]?.display, duo: THEMES[s.theme.id]?.duo });
   };
 
   return { app, cache, broadcaster, page, attachClient: (fn: (app: Express) => Promise<void>) => fn(app) };

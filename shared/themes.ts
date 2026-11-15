@@ -15,9 +15,10 @@ export interface ThemeTokens {
   btn: string; onBtn: string;
 }
 
-export interface ThemeDef { id: ThemeId; name: string; note: string; dark: boolean; tokens: ThemeTokens; display: string; body: string }
+/** duo: dual tone. The `btn` colour (tone A) fills the header, the section title bars and the tab bar; the accent (tone B) marks them. */
+export interface ThemeDef { id: ThemeId; name: string; note: string; dark: boolean; tokens: ThemeTokens; display: string; body: string; duo?: boolean }
 
-export const THEME_IDS = ['noir', 'ivory', 'midnight', 'garnet', 'emerald', 'heritage'] as const;
+export const THEME_IDS = ['noir', 'ivory', 'midnight', 'garnet', 'emerald', 'heritage', 'maroongold', 'navygold', 'blackgold'] as const;
 export type ThemeId = (typeof THEME_IDS)[number];
 
 export const THEMES: Record<ThemeId, ThemeDef> = {
@@ -44,6 +45,18 @@ export const THEMES: Record<ThemeId, ThemeDef> = {
   heritage: {
     id: 'heritage', name: 'Heritage', note: 'Temple red and turmeric gold', dark: true, display: 'Playfair Display', body: 'Jost',
     tokens: { bg: '#1c0b0b', bg2: '#271111', bg3: '#321616', ink: '#f7ecdc', mut: '#c2a99a', hair: '#43201d', accent: '#e0a63a', onAccent: '#1c0b0b', up: '#9fdcb4', dn: '#f39a7e', btn: '#f7ecdc', onBtn: '#1c0b0b' }
+  },
+  maroongold: {
+    id: 'maroongold', name: 'Maroon & Gold', note: 'Royal maroon bands with antique gold on cream', dark: false, display: 'Cinzel', body: 'Jost', duo: true,
+    tokens: { bg: '#fffaf0', bg2: '#f8eedb', bg3: '#f0e1c4', ink: '#2a0d10', mut: '#6a4a40', hair: '#e6d3b0', accent: '#8a6100', onAccent: '#ffffff', up: '#1f6e3a', dn: '#b3261e', btn: '#6b0f1a', onBtn: '#fff6e6' }
+  },
+  navygold: {
+    id: 'navygold', name: 'Navy & Gold', note: 'Banker navy bands with gold on cool white', dark: false, display: 'Libre Baskerville', body: 'Jost', duo: true,
+    tokens: { bg: '#f7f8fb', bg2: '#eceff5', bg3: '#dfe4ee', ink: '#0b1630', mut: '#4a5570', hair: '#d5dbe7', accent: '#8a6400', onAccent: '#ffffff', up: '#11723f', dn: '#c0281f', btn: '#0f2350', onBtn: '#ffffff' }
+  },
+  blackgold: {
+    id: 'blackgold', name: 'Black & Gold', note: 'Jet black bands with bright gold on ivory', dark: false, display: 'Playfair Display', body: 'Jost', duo: true,
+    tokens: { bg: '#fbf7ee', bg2: '#f3ecdc', bg3: '#e9dfc8', ink: '#121110', mut: '#57514a', hair: '#e0d6c2', accent: '#8f6a00', onAccent: '#ffffff', up: '#1f6e3a', dn: '#b3261e', btn: '#111111', onBtn: '#f6e7b8' }
   }
 };
 
